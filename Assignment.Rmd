@@ -1,0 +1,86 @@
+---
+title: "PML"
+output: html_document
+---
+
+
+##Executive Summary
+6 participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways. These information is used to predict the movementof 20 test cases.
+
+A random tree method was used to predict results at an accuracy of 0.998. The 20 test rusults were predicted correctly at a rate of 19/20 (95%).
+
+##Setup
+Assuming that the csv files are in the directory:
+```{r}
+library(caret)
+library(randomForest)
+library(rpart) 
+library(RColorBrewer)
+library(lattice)
+```
+
+```{r}
+setwd('C:/Workspace/pml')#change as appropriot 
+training <- read.csv('pml-training.csv')
+testing <- read.csv('pml-training.csv')
+```
+
+##Partition for cross validation
+60% partition is used for training and rest for testing
+
+```{r}
+partitions <- createDataPartition(y=training$classe, p=0.6, list=FALSE)
+partTrain <- training[partitions, ]
+partTest <- training[-partitions, ]
+dim(partTrain); 
+dim(partTest)
+```
+
+##Cleaning Data
+excluded identifier, timestamp, and window data and those variables with higher than 95% missing values.
+```{r,results='hide',warning=FALSE,message=FALSE}
+Clean <- grep("name|timestamp|window|X", colnames(training), value=F) 
+trainingCl <- partTrain[,-Clean]
+trainingCl[trainingCl==""] <- NA
+NA.rate <- apply(trainingCl, 2, function(x) sum(is.na(x)))/nrow(trainingCl)
+trainingCl <- trainingCl[!(NA.rate>0.95)]
+summary(trainingCl)
+```
+PCA is al=pplied to reduce the number of variables further
+```{r,results='hide',warning=FALSE,message=FALSE}
+preProc <- preProcess(trainingCl[,1:52],method="pca",thresh=.95) #25 components are required
+
+preProc <- preProcess(trainingCl[,1:52],method="pca",pcaComp=25) 
+preProc$rotation
+trainingPC <- predict(preProc,trainingCl[,1:52])
+```
+
+##Random forest
+Random forest method is applied
+```{r}
+modFitRF <- randomForest(trainingCl$classe ~ .,   data=trainingPC, do.trace=F)
+print(modFitRF)
+```
+
+##Checking test set
+```{r}
+testingCl <- testing[,-Clean]
+testingCl[testingCl==""] <- NA
+NA.rate <- apply(testingCl, 2, function(x) sum(is.na(x)))/nrow(testingCl)
+testingCl <- testingCl[!(NA.rate>0.95)]
+testingPC <- predict(preProc,testingCl[,1:52])
+confusionMatrix(testingCl$classe,predict(modFitRF,testingPC))
+```
+
+##Running the 20 samples
+```{r,results='hide',warning=FALSE,message=FALSE}
+testingCl <- testing[,-Clean]
+testingCl[testingCl==""] <- NA
+NA.rate <- apply(testingCl, 2, function(x) sum(is.na(x)))/nrow(testingCl)
+testingCl <- testingCl[!(NA.rate>0.95)]
+testingPC <- predict(preProc,testingCl[,1:52])
+testingCl$classe <- predict(modFitRF,testingPC)
+```
+
+##Conclusion
+From the 19622 observations 60% were used to build a random tree. A 0.9894 accuracy is achieved with the testing set. The prediction for the 20 smaple rates yieled 1 incorrect result. 
